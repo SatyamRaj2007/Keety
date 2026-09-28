@@ -1,0 +1,18 @@
+# Environment secrets; keep safe templates trackable.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Node dependencies and generated output.
+node_modules/
+**/node_modules/
+coverage/
+**/coverage/
+dist/
+**/dist/
+build/
+**/build/
+*.log
