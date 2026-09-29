@@ -812,3 +812,63 @@ tbody tr:hover td { background: #fbfcfa; }
   .growth-context-links { margin-top: 8px; }
   .ai-empty-prompt { padding: 28px 10px; }
 }
+
+/* ─── Period selector (inline, used in AskPage + GrowthPage + ProductAnalysisPage) ── */
+
+.ai-period-selector { display: flex; gap: 3px; }
+.ai-period-btn { min-height: 30px; padding: 0 11px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); background: var(--surface); font-size: 10px; font-weight: 600; cursor: pointer; transition: border-color 120ms, background-color 120ms, color 120ms; }
+.ai-period-btn:hover { border-color: #a6b99e; color: var(--forest); }
+.ai-period-btn.active { border-color: var(--forest); color: var(--forest); background: var(--surface-leaf); font-weight: 700; }
+
+/* Ask page period row */
+.ask-period-row { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; }
+.ask-period-label { color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
+
+/* Composer period + hint */
+.composer-period-row { display: flex; align-items: center; gap: 8px; }
+.composer-hint { margin-top: 6px; color: var(--muted); font-size: 9px; }
+
+/* Growth / Product period row */
+.growth-period-row { display: flex; align-items: center; gap: 10px; }
+.growth-period-label { color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
+
+/* ─── AI History page ─────────────────────────────────────────────────────── */
+
+.history-list { display: grid; gap: 8px; }
+.history-entry { padding: 14px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.history-entry-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 7px; flex-wrap: wrap; }
+.history-entry-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.history-status-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+.history-status-success { background: var(--success); }
+.history-status-failed  { background: var(--danger); }
+.history-type { color: var(--ink); font-size: 11px; }
+.history-period { padding: 1px 6px; border-radius: 3px; color: var(--forest); background: var(--surface-leaf); font-size: 9px; font-weight: 700; }
+.history-time { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 9px; }
+.history-entry-stats { display: flex; gap: 10px; color: var(--muted); font-size: 9px; }
+.history-entry-stats span { padding: 2px 6px; border-radius: 3px; background: #f5f7f3; }
+.history-prompt { margin: 0 0 5px; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
+.history-response { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; font-style: italic; }
+.history-failed { display: flex; align-items: center; gap: 5px; margin: 0; color: var(--danger); font-size: 10px; }
+
+/* ─── Knowledge Base page ─────────────────────────────────────────────────── */
+
+.kb-upload-form { padding: 20px; margin-bottom: 18px; }
+.kb-document-list { display: grid; gap: 8px; }
+.kb-document-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.kb-doc-icon { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border-radius: 6px; color: var(--forest); background: var(--surface-leaf); }
+.kb-doc-body { min-width: 0; flex: 1; }
+.kb-doc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 3px; flex-wrap: wrap; }
+.kb-doc-header strong { color: var(--ink); font-size: 12px; }
+.kb-doc-desc { margin: 0 0 5px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.kb-doc-meta { display: flex; gap: 10px; color: var(--muted); font-size: 9px; flex-wrap: wrap; }
+
+/* ─── Responsive for new pages ────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .ask-period-row { flex-wrap: wrap; }
+  .ai-period-selector { gap: 2px; }
+  .ai-period-btn { min-height: 28px; padding: 0 8px; font-size: 9px; }
+  .history-entry { padding: 12px; }
+  .history-entry-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .kb-document-row { padding: 12px; }
+}

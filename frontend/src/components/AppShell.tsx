@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   Activity, ArrowUpRight, BarChart3, Boxes, BriefcaseBusiness, ChartNoAxesCombined,
-  ChevronDown, CircleHelp, ClipboardList, FileText, LayoutDashboard, Layers,
+  ChevronDown, CircleHelp, ClipboardList, Database, FileText, History, LayoutDashboard, Layers,
   LogOut, MoreHorizontal, Package, ReceiptText, Settings2, Sparkles, Users, X,
 } from 'lucide-react'
 import { useAuth } from '../contexts/useAuth'
@@ -14,12 +14,14 @@ const primaryNavigation = [
   { path: '/app/customers', label: 'Customers', icon: Users, section: 'Manage', unavailable: true },
   { path: '/app/expenses', label: 'Expenses', icon: BriefcaseBusiness, section: 'Manage', unavailable: true },
   { path: '/app/inventory', label: 'Inventory', icon: Boxes, section: 'Manage', unavailable: true },
-  { path: '/app/analytics', label: 'Analytics', icon: ChartNoAxesCombined, section: 'Insights' },
-  { path: '/app/ask-keety', label: 'Ask KEETY', icon: Sparkles, section: 'Insights' },
-  { path: '/app/growth', label: 'Growth plan', icon: ArrowUpRight, section: 'Insights' },
-  { path: '/app/product-analysis', label: 'Product analysis', icon: Layers, section: 'Insights' },
-  { path: '/app/summary', label: 'Business summary', icon: ClipboardList, section: 'Insights' },
-  { path: '/app/reports', label: 'Reports', icon: FileText, section: 'Insights', unavailable: true },
+  { path: '/app/analytics',        label: 'Analytics',        icon: ChartNoAxesCombined, section: 'Insights' },
+  { path: '/app/ask-keety',        label: 'Ask KEETY',        icon: Sparkles,     section: 'Insights' },
+  { path: '/app/growth',           label: 'Growth plan',      icon: ArrowUpRight,  section: 'Insights' },
+  { path: '/app/product-analysis', label: 'Product analysis', icon: Layers,        section: 'Insights' },
+  { path: '/app/summary',          label: 'Business summary', icon: ClipboardList, section: 'Insights' },
+  { path: '/app/ai-history',       label: 'AI history',       icon: History,       section: 'Insights' },
+  { path: '/app/knowledge-base',   label: 'Knowledge base',   icon: Database,      section: 'Insights' },
+  { path: '/app/reports',          label: 'Reports',          icon: FileText,      section: 'Insights', unavailable: true },
   { path: '/app/settings', label: 'Settings', icon: Settings2, section: 'Workspace' },
 ]
 
@@ -28,6 +30,7 @@ const pageNames: Record<string, string> = {
   '/app/customers': 'Customers', '/app/expenses': 'Expenses', '/app/inventory': 'Inventory',
   '/app/analytics': 'Analytics', '/app/ask-keety': 'Ask KEETY', '/app/growth': 'Growth plan',
   '/app/product-analysis': 'Product analysis', '/app/summary': 'Business summary',
+  '/app/ai-history': 'AI history', '/app/knowledge-base': 'Knowledge base',
   '/app/reports': 'Reports', '/app/settings': 'Settings',
 }
 

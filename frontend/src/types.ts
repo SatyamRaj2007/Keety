@@ -101,3 +101,36 @@ export interface AIResponse {
   limitations?: string[]
   dataSource?: string
 }
+
+export interface AILogEntry {
+  _id: string
+  requestType: 'ASK' | 'GROWTH_STRATEGY' | 'PRODUCT_ANALYSIS' | 'SUMMARY'
+  period: 'daily' | 'weekly' | 'monthly'
+  userPrompt: string
+  response: string
+  model: string
+  promptVersion: string
+  latencyMs: number
+  status: 'SUCCESS' | 'FAILED'
+  tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number }
+  estimatedCostUsd: number
+  createdAt: string
+}
+
+export interface BusinessDocument {
+  _id: string
+  businessId: string
+  name: string
+  description: string
+  sourceType: 'PDF' | 'TEXT' | 'MARKDOWN' | 'HTML' | 'CSV' | 'OTHER'
+  mimeType: string
+  wordCount: number
+  contentHash: string
+  version: number
+  originalFileName: string
+  fileSizeBytes: number
+  status: 'UPLOADED' | 'PROCESSING' | 'INDEXED' | 'FAILED' | 'DELETED'
+  indexedAt?: string
+  createdAt: string
+  updatedAt: string
+}
