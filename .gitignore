@@ -17,3 +17,6 @@ build/
 **/build/
 *.log
 .DS_Store
+
+# Kiro IDE workspace config (contains machine-specific absolute paths)
+.kiro/
