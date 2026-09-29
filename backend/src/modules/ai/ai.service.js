@@ -5,9 +5,10 @@
  *
  * Architecture (AI.md §4, §5, §123):
  *   User prompt
- *     → Context assembly (deterministic business data)
+ *     → Context assembly (deterministic business data, correct period)
  *     → Gemini call (interpretation + explanation)
  *     → Output validation (structured JSON parsing)
+ *     → Token usage + cost tracking
  *     → AILog persistence (success or failure)
  *     → Structured response to controller
  *
@@ -27,6 +28,34 @@ const { assembleContext } = require('./ai.context');
 const { PROMPT_VERSION, getSystemInstruction, buildUserMessage } = require('./ai.prompts');
 const { parseAndValidateOutput } = require('./ai.output');
 
+// ─── Cost estimation ─────────────────────────────────────────────────────────
+
+/**
+ * Estimate USD cost from token counts.
+ * Gemini 2.0 Flash pricing as of Sept 2026 (≤128K context):
+ *   Input:  $0.075 / 1M tokens
+ *   Output: $0.30  / 1M tokens
+ * Per AI.md §75 — track cost; do not claim exact billing accuracy.
+ */
+function estimateCostUsd(inputTokens, outputTokens) {
+  const inputCost  = (inputTokens  / 1_000_000) * 0.075;
+  const outputCost = (outputTokens / 1_000_000) * 0.30;
+  return Number((inputCost + outputCost).toFixed(8));
+}
+
+/**
+ * Extract token counts from the Gemini SDK response object.
+ * The SDK may or may not include usageMetadata depending on model / SDK version.
+ */
+function extractTokenUsage(geminiResult) {
+  const meta = geminiResult?.response?.usageMetadata;
+  if (!meta) return { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+  const inputTokens  = meta.promptTokenCount     ?? 0;
+  const outputTokens = meta.candidatesTokenCount ?? 0;
+  const totalTokens  = meta.totalTokenCount       ?? (inputTokens + outputTokens);
+  return { inputTokens, outputTokens, totalTokens };
+}
+
 // ─── Core orchestrator ─────────────────────────────────────────────────────
 
 /**
@@ -35,7 +64,7 @@ const { parseAndValidateOutput } = require('./ai.output');
  * @param {object}  opts.user          - req.user
  * @param {string}  opts.prompt        - The user-provided text prompt
  * @param {'ASK'|'GROWTH_STRATEGY'|'PRODUCT_ANALYSIS'|'SUMMARY'} opts.requestType
- * @param {string}  [opts.period]      - Analytics period override
+ * @param {string}  [opts.period]      - Analytics period (daily/weekly/monthly) — AI.md §11
  * @param {string}  [opts.productId]   - For PRODUCT_ANALYSIS requests
  */
 async function generateResponse({ business, user, prompt, requestType, period, productId }) {
@@ -50,6 +79,9 @@ async function generateResponse({ business, user, prompt, requestType, period, p
     throw new ApiError(503, 'AI_SERVICE_UNAVAILABLE', 'KEETY AI is not configured yet');
   }
 
+  // Normalise period — default to 'monthly' so it is always explicit (AI.md §11)
+  const resolvedPeriod = period || 'monthly';
+
   // Map requestType enum → context type string used by assembleContext
   const contextType = {
     ASK: 'ask',
@@ -59,12 +91,16 @@ async function generateResponse({ business, user, prompt, requestType, period, p
   }[requestType] || 'ask';
 
   // 1. Assemble deterministic business context (AI.md §46, §56)
+  //    Pass resolvedPeriod so the AI always analyses the period the user selected.
   let contextResult;
   try {
-    contextResult = await assembleContext(business, contextType, { period, productId });
+    contextResult = await assembleContext(business, contextType, {
+      period: resolvedPeriod,
+      productId
+    });
   } catch (err) {
     if (err instanceof ApiError) throw err;
-    console.error('[ai.service] assembleContext error:', err);
+    // Structured error — no raw stack in production; full err available for local debugging
     throw new ApiError(500, 'CONTEXT_BUILD_ERROR', 'Could not assemble business context');
   }
 
@@ -74,7 +110,7 @@ async function generateResponse({ business, user, prompt, requestType, period, p
   const startedAt = Date.now();
 
   try {
-    // 2. Call Gemini (AI.md §122 — use appropriate temperature for factual tasks)
+    // 2. Call Gemini (AI.md §122 — low temperature for factual business answers)
     const model = new GoogleGenerativeAI(env.GEMINI_API_KEY).getGenerativeModel({
       model: env.GEMINI_MODEL,
       systemInstruction,
@@ -90,18 +126,25 @@ async function generateResponse({ business, user, prompt, requestType, period, p
     // 3. Parse and validate structured output (AI.md §51–§52)
     const validated = parseAndValidateOutput(rawText);
 
-    // 4. Persist SUCCESS log (AI.md §58, §59, §102)
+    // 4. Extract token usage and estimate cost (AI.md §74–§75)
+    const tokenUsage = extractTokenUsage(result);
+    const estimatedCostUsd = estimateCostUsd(tokenUsage.inputTokens, tokenUsage.outputTokens);
+
+    // 5. Persist SUCCESS log (AI.md §58, §59, §102)
     await AILog.create({
       businessId: business._id,
       userId: user._id,
       requestType,
+      period: resolvedPeriod,
       userPrompt: prompt,
       context,
       response: validated.answer,
       model: env.GEMINI_MODEL,
       promptVersion: PROMPT_VERSION,
       latencyMs: Date.now() - startedAt,
-      status: 'SUCCESS'
+      status: 'SUCCESS',
+      tokenUsage,
+      estimatedCostUsd
     });
 
     return validated;
@@ -109,53 +152,60 @@ async function generateResponse({ business, user, prompt, requestType, period, p
   } catch (error) {
     if (error instanceof ApiError) throw error;
 
-    // 5. Persist FAILED log (AI.md §58) — guard so log-write failure doesn't mask original error
+    // 6. Persist FAILED log so every provider error is observable (AI.md §58)
+    //    Guard with its own try/catch — a log-write failure must not mask the original error.
     try {
       await AILog.create({
         businessId: business._id,
         userId: user._id,
         requestType,
+        period: resolvedPeriod,
         userPrompt: prompt,
         context,
         response: '',
         model: env.GEMINI_MODEL,
         promptVersion: PROMPT_VERSION,
         latencyMs: Date.now() - startedAt,
-        status: 'FAILED'
+        status: 'FAILED',
+        tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        estimatedCostUsd: 0
       });
     } catch {
-      // Non-fatal
+      // Non-fatal — the original error still propagates below.
     }
 
     throw new ApiError(503, 'AI_SERVICE_UNAVAILABLE', 'KEETY AI is temporarily unavailable. Please try again.');
   }
 }
 
-// ─── Public endpoint handlers ─────────────────────────────────────────────
+// ─── Public endpoint handlers ──────────────────────────────────────────────
 
 /**
- * POST /ai/ask — answer a specific business question
+ * POST /ai/ask — answer a specific business question.
+ * Accepts an optional `period` so the context matches what the user is viewing (AI.md §11).
  */
-async function ask(business, user, question) {
-  return generateResponse({ business, user, prompt: question, requestType: 'ASK' });
+async function ask(business, user, question, period) {
+  return generateResponse({ business, user, prompt: question, requestType: 'ASK', period });
 }
 
 /**
- * POST /ai/growth-strategy — produce an evidence-based growth plan
+ * POST /ai/growth-strategy — produce an evidence-based growth plan.
+ * Accepts an optional `period` so strategy is anchored to the correct window (AI.md §11).
  */
-async function growthStrategy(business, user, goal) {
+async function growthStrategy(business, user, goal, period) {
   return generateResponse({
     business,
     user,
     prompt: `Create a practical growth strategy for this business goal: ${goal}`,
-    requestType: 'GROWTH_STRATEGY'
+    requestType: 'GROWTH_STRATEGY',
+    period
   });
 }
 
 /**
  * POST /ai/product-analysis — analyse a specific product (AI.md §126–§127)
  */
-async function productAnalysis(business, user, productId, question) {
+async function productAnalysis(business, user, productId, question, period) {
   const prompt = question
     ? `${question} (regarding this product)`
     : 'Analyse this product — its sales performance, inventory status, pricing signals, and what the business should consider.';
@@ -165,6 +215,7 @@ async function productAnalysis(business, user, productId, question) {
     user,
     prompt,
     requestType: 'PRODUCT_ANALYSIS',
+    period,
     productId
   });
 }
