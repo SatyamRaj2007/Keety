@@ -7,10 +7,11 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node --test",
+    "test": "node --test \"tests/api/**/*.test.js\" \"tests/unit/**/*.test.js\"",
     "test:unit": "node --test tests/unit/**/*.test.js",
     "test:api": "node --test tests/api/**/*.test.js",
-    "test:coverage": "node --experimental-test-coverage --test"
+    "test:eval": "node --test tests/ai-eval/eval.test.js",
+    "test:coverage": "node --experimental-test-coverage --test \"tests/api/**/*.test.js\" \"tests/unit/**/*.test.js\""
   },
   "engines": {
     "node": ">=20"
