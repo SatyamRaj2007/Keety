@@ -80,8 +80,24 @@ export interface Analytics {
   customerSummary: { newCustomers: number; growthPercent: number }
 }
 
+export interface AIInsight {
+  title: string
+  description: string
+  metric?: string
+  value?: number
+}
+
+export interface AIRecommendation {
+  title: string
+  description: string
+  priority: 'HIGH' | 'MEDIUM' | 'LOW'
+  evidence?: string
+}
+
 export interface AIResponse {
   answer: string
-  insights: Array<{ title: string; description: string; metric?: string; value?: number }>
-  recommendations: Array<{ title: string; description: string; priority: 'HIGH' | 'MEDIUM' | 'LOW' }>
+  insights: AIInsight[]
+  recommendations: AIRecommendation[]
+  limitations?: string[]
+  dataSource?: string
 }
