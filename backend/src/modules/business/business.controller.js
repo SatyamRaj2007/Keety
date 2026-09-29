@@ -6,8 +6,9 @@ async function createBusiness(req, res) {
 }
 
 async function getBusiness(req, res) {
-  const business = await businessService.getBusiness(req.params.id, req.user._id);
-  res.status(200).json({ success: true, data: { business } });
+  // req.business is already fetched and ownership-verified by requireBusinessFromRouteParam.
+  // Returning it directly avoids a redundant DB round-trip.
+  res.status(200).json({ success: true, data: { business: req.business } });
 }
 
 async function updateBusiness(req, res) {

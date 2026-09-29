@@ -7,7 +7,7 @@ async function requireBusiness(req, res, next) {
     || req.businessCandidateId
     || req.get('x-business-id')
     || req.query.businessId
-    || req.body.businessId;
+    || req.body?.businessId;
   const businessId = requestedId || (req.user.businessIds.length === 1
     ? req.user.businessIds[0].toString()
     : null);
