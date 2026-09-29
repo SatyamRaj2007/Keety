@@ -8,7 +8,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SalesPage } from './pages/SalesPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
-import { AskPage, GrowthPage } from './pages/AiPages'
+import { AskPage, GrowthPage, ProductAnalysisPage, BusinessSummaryPage } from './pages/AiPages'
 import { SettingsPage } from './pages/SettingsPage'
 import { UnavailablePage } from './pages/UnavailablePage'
 import { LoadingBlock } from './components/ui'
@@ -56,6 +56,8 @@ function App() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="ask-keety" element={<AskPage />} />
         <Route path="growth" element={<GrowthPage />} />
+        <Route path="product-analysis" element={<ProductAnalysisPage />} />
+        <Route path="summary" element={<BusinessSummaryPage />} />
         <Route path="reports" element={<UnavailablePage section="reports" />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
