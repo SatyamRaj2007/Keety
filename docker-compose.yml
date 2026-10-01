@@ -1,0 +1,106 @@
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: keety-mongo
+    restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: keety
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' | grep 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+
+  mongo-init:
+    image: mongo:7.0
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -e
+
+        until mongosh --host mongo:27017 --quiet --eval 'db.adminCommand({ ping: 1 }).ok' >/dev/null 2>&1; do
+          echo "Waiting for MongoDB..."
+          sleep 2
+        done
+
+        mongosh --host mongo:27017 --quiet --eval '
+          try {
+            const status = rs.status();
+            if (status.ok === 1) {
+              print("Replica set is already initialized.");
+            }
+          } catch (error) {
+            if (error.code === 94 || error.codeName === "NotYetInitialized") {
+              print("Initializing replica set rs0...");
+              rs.initiate({
+                _id: "rs0",
+                members: [{ _id: 0, host: "mongo:27017" }]
+              });
+            } else {
+              throw error;
+            }
+          }
+        '
+
+        echo "Waiting for replica set to become ready..."
+        until mongosh --host mongo:27017 --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true; do
+          sleep 2
+        done
+
+        echo "MongoDB replica set is ready."
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: keety-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-5000}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/keety?replicaSet=rs0}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "bash", "scripts/healthcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000/api}
+    container_name: keety-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+volumes:
+  mongo-data:
