@@ -26,4 +26,9 @@ const updateDocumentSchema = z.object({
   description: z.string().trim().max(1000).optional()
 }).strict();
 
-module.exports = { ingestDocumentSchema, updateDocumentSchema };
+const searchDocumentsSchema = z.object({
+  query: z.string().trim().min(1).max(1000),
+  limit: z.coerce.number().int().min(1).max(20).optional().default(5)
+}).strict();
+
+module.exports = { ingestDocumentSchema, updateDocumentSchema, searchDocumentsSchema };

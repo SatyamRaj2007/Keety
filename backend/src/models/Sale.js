@@ -18,9 +18,19 @@ const saleSchema = new mongoose.Schema({
   totalAmount: { type: Number, required: true, min: 0 },
   paymentMethod: { type: String, enum: ['CASH', 'CARD', 'UPI', 'ONLINE', 'OTHER'], default: 'OTHER' },
   status: { type: String, enum: ['COMPLETED', 'CANCELLED', 'REFUNDED'], default: 'COMPLETED' },
-  soldAt: { type: Date, required: true, default: Date.now }
+  soldAt: { type: Date, required: true, default: Date.now },
+  idempotencyKey: { type: String, trim: true },
+  idempotencyHash: { type: String, trim: true }
 }, { timestamps: true, collection: 'sales' });
 
 saleSchema.index({ businessId: 1, soldAt: -1 });
+saleSchema.index(
+  { businessId: 1, idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { idempotencyKey: { $type: 'string' } },
+    name: 'business_idempotency_unique'
+  }
+);
 
 module.exports = mongoose.models.Sale || mongoose.model('Sale', saleSchema);

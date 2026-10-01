@@ -175,6 +175,31 @@ test('POST /login — 401 INVALID_CREDENTIALS for an inactive account', async ()
   assert.equal(res.body.error.code, 'INVALID_CREDENTIALS');
 });
 
+test('POST /login — 429 when the auth rate limit is exceeded', async () => {
+  const rateLimitedApp = createApp({
+    clientOrigin: 'http://localhost:5173',
+    authRateLimit: { windowMs: 60_000, limit: 2, standardHeaders: true, legacyHeaders: false }
+  });
+
+  await request(rateLimitedApp).post('/api/auth/login').send({
+    email: 'brute-force@example.test',
+    password: 'wrong-password-1'
+  });
+
+  await request(rateLimitedApp).post('/api/auth/login').send({
+    email: 'brute-force@example.test',
+    password: 'wrong-password-2'
+  });
+
+  const res = await request(rateLimitedApp).post('/api/auth/login').send({
+    email: 'brute-force@example.test',
+    password: 'wrong-password-3'
+  });
+
+  assert.equal(res.status, 429);
+  assert.equal(res.body.error.code, 'RATE_LIMITED');
+});
+
 test('POST /login — 400 VALIDATION_ERROR when password field is missing', async () => {
   const res = await request(app).post('/api/auth/login').send({
     email: 'someone@example.test'

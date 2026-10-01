@@ -34,12 +34,78 @@ const MAX_DESC_LENGTH = 1000;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
+const CHUNKING_VERSION = 'keety-basic-v1';
+
 function sha256(text) {
   return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
 function countWords(text) {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function normalizeForSearch(input) {
+  return String(input || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tokenizeForSearch(input) {
+  return normalizeForSearch(input).split(' ').filter(Boolean);
+}
+
+function chunkText(input, { maxChars = 800, overlap = 120 } = {}) {
+  if (!input || typeof input !== 'string') return [];
+
+  const safeMaxChars = Math.max(200, Number.isFinite(maxChars) ? Number(maxChars) : 800);
+  const safeOverlap = Math.min(Math.max(Number(overlap) || 0, 0), Math.floor(safeMaxChars * 0.5));
+  const text = input.replace(/\r\n/g, '\n').replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (!text) return [];
+
+  const chunks = [];
+  let start = 0;
+  let chunkIndex = 0;
+
+  while (start < text.length) {
+    let end = Math.min(start + safeMaxChars, text.length);
+
+    if (end < text.length) {
+      const nearestSpace = text.lastIndexOf(' ', end);
+      const nearestBreak = text.lastIndexOf('\n', end);
+      const candidate = Math.max(nearestSpace, nearestBreak);
+      if (candidate > start + (safeMaxChars * 0.4)) {
+        end = candidate;
+      }
+    }
+
+    let segment = text.slice(start, end).trim();
+    if (!segment) {
+      start += safeMaxChars - safeOverlap;
+      continue;
+    }
+
+    if (segment.length > safeMaxChars) {
+      segment = segment.slice(0, safeMaxChars).trim();
+    }
+
+    chunks.push({
+      chunkId: `chunk-${chunkIndex + 1}`,
+      text: segment,
+      section: `section-${chunkIndex + 1}`,
+      start,
+      end: start + segment.length,
+      contentHash: sha256(segment),
+      chunkingVersion: CHUNKING_VERSION
+    });
+
+    if (end >= text.length) break;
+    start = Math.max(start + safeMaxChars - safeOverlap, end - safeOverlap);
+    chunkIndex += 1;
+  }
+
+  return chunks;
 }
 
 /**
@@ -81,6 +147,7 @@ async function ingestDocument(businessId, userId, input) {
   // ── Clean and hash (RAG.md §19, §16) ─────────────────────────────────────
   const cleanedText = cleanText(text);
   const contentHash = sha256(cleanedText);
+  const chunks = chunkText(cleanedText, { maxChars: 800, overlap: 120 });
 
   // ── Duplicate detection (RAG.md §16: "detect duplicate content") ─────────
   const duplicate = await BusinessDocument.findOne({
@@ -102,10 +169,22 @@ async function ingestDocument(businessId, userId, input) {
     sourceType,
     mimeType: mimeType || 'text/plain',
     extractedText: cleanedText,
+    chunks: chunks.map((chunk, index) => ({
+      chunkId: chunk.chunkId,
+      text: chunk.text,
+      section: `section-${index + 1}`,
+      contentHash: chunk.contentHash,
+      start: chunk.start,
+      end: chunk.end,
+      order: index,
+      chunkingVersion: CHUNKING_VERSION
+    })),
     wordCount: countWords(cleanedText),
     contentHash,
     version: 1,
     parserVersion: '1.0',
+    chunkingVersion: CHUNKING_VERSION,
+    embeddingVersion: 'keety-basic-v1',
     originalFileName: (originalFileName || '').slice(0, 255),
     fileSizeBytes: fileSizeBytes || Buffer.byteLength(text, 'utf8'),
     status: 'INDEXED',
@@ -216,4 +295,80 @@ async function updateDocument(businessId, documentId, input) {
   return doc;
 }
 
-module.exports = { ingestDocument, listDocuments, getDocument, deleteDocument, updateDocument };
+async function searchDocuments(businessId, query, options = {}) {
+  const safeQuery = String(query || '').trim();
+  if (!safeQuery) {
+    return { query: '', results: [], total: 0 };
+  }
+
+  const limit = Math.min(Math.max(Number(options.limit) || 5, 1), 20);
+  const threshold = Number(options.threshold) || 0;
+
+  const documents = await BusinessDocument.find({
+    businessId,
+    status: { $ne: 'DELETED' }
+  }).lean();
+
+  const scored = [];
+  const queryTokens = new Set(tokenizeForSearch(safeQuery));
+  const normalizedQuery = normalizeForSearch(safeQuery);
+
+  for (const document of documents) {
+    const chunks = Array.isArray(document.chunks) && document.chunks.length > 0
+      ? document.chunks
+      : chunkText(document.extractedText || document.name || '', { maxChars: 800, overlap: 100 });
+
+    const matches = [];
+    for (const chunk of chunks) {
+      const text = chunk.text || chunk.content || '';
+      const normalizedText = normalizeForSearch(text);
+      if (!normalizedText) continue;
+
+      const chunkTokens = tokenizeForSearch(text);
+      const overlapCount = chunkTokens.filter((token) => queryTokens.has(token)).length;
+      const phraseBoost = normalizedQuery.includes(normalizedText) || normalizedText.includes(normalizedQuery) ? 2 : 0;
+      const score = overlapCount * 3 + phraseBoost + (document.name ? (normalizeForSearch(document.name).includes(normalizedQuery) ? 4 : 0) : 0);
+
+      if (score <= threshold) continue;
+
+      matches.push({
+        chunkId: chunk.chunkId || chunk.id || `chunk-${matches.length + 1}`,
+        text,
+        score,
+        section: chunk.section || 'document',
+        contentHash: chunk.contentHash || sha256(text)
+      });
+    }
+
+    if (matches.length === 0) continue;
+
+    const bestScore = Math.max(...matches.map((match) => match.score));
+    scored.push({
+      document: {
+        _id: document._id,
+        name: document.name,
+        description: document.description,
+        sourceType: document.sourceType,
+        status: document.status,
+        documentId: document._id,
+        version: document.version,
+        createdAt: document.createdAt,
+        updatedAt: document.updatedAt
+      },
+      score: bestScore,
+      matches: matches.sort((a, b) => b.score - a.score).slice(0, 5)
+    });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const results = scored.slice(0, limit);
+  return {
+    query: safeQuery,
+    total: results.length,
+    results,
+    limit
+  };
+}
+
+module.exports = { ingestDocument, listDocuments, getDocument, deleteDocument, updateDocument, searchDocuments, chunkText };

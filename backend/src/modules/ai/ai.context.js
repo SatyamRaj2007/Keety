@@ -13,6 +13,7 @@
 const Product = require('../../models/Product');
 const Inventory = require('../../models/Inventory');
 const analyticsService = require('../analytics/analytics.service');
+const { searchDocuments } = require('../rag/rag.service');
 
 /**
  * Build a capability registry for the business.
@@ -50,6 +51,30 @@ async function buildCapabilityRegistry(businessId) {
  * @param {string} [opts.productId] - For product-intelligence requests
  * @returns {{ context: object, capabilities: object }}
  */
+async function searchBusinessDocuments(businessId, query, limit = 3) {
+  const safeQuery = String(query || '').trim();
+  if (!safeQuery) return [];
+
+  try {
+    const result = await searchDocuments(businessId, safeQuery, { limit });
+    return (result?.results || []).map((entry) => {
+      const document = entry?.document || {};
+      const bestMatch = Array.isArray(entry?.matches) && entry.matches.length > 0 ? entry.matches[0] : null;
+
+      return {
+        id: document._id || document.documentId || null,
+        name: document.name || 'Document',
+        description: document.description || '',
+        sourceType: document.sourceType || 'TEXT',
+        excerpt: bestMatch?.text || '',
+        score: entry?.score || 0
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 async function assembleContext(business, requestType, opts = {}) {
   const period = opts.period || 'monthly';
   const businessId = business._id;
@@ -90,6 +115,10 @@ async function assembleContext(business, requestType, opts = {}) {
     customerSummary: analytics.customerSummary
   };
 
+  const relevantDocuments = (requestType === 'ask' || requestType === 'summary' || requestType === 'growth')
+    ? await searchBusinessDocuments(businessId, opts.question || opts.prompt || '', 3)
+    : [];
+
   // For product-intelligence requests, attach individual product data
   let productContext = null;
   if (requestType === 'product' && opts.productId) {
@@ -127,6 +156,7 @@ async function assembleContext(business, requestType, opts = {}) {
       business: businessContext,
       analytics: analyticsContext,
       ...(productContext && { product: productContext }),
+      relevantDocuments,
       capabilities,
       dataNote: 'All numbers are from the authoritative business database. Do not invent metrics.'
     },

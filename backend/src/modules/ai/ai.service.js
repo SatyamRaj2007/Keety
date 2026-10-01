@@ -27,6 +27,9 @@ const { ApiError } = require('../../utils/errors');
 const { assembleContext } = require('./ai.context');
 const { PROMPT_VERSION, getSystemInstruction, buildUserMessage } = require('./ai.prompts');
 const { parseAndValidateOutput } = require('./ai.output');
+const logger = require('../../utils/logger');
+
+const GEMINI_REQUEST_TIMEOUT_MS = 30_000;
 
 // ─── Cost estimation ─────────────────────────────────────────────────────────
 
@@ -56,6 +59,48 @@ function extractTokenUsage(geminiResult) {
   return { inputTokens, outputTokens, totalTokens };
 }
 
+function getProviderErrorMetadata(error, stage) {
+  const status = [error?.status, error?.statusCode, error?.response?.status]
+    .find((value) => Number.isInteger(value));
+  const causeCode = typeof error?.cause?.code === 'string' && /^[A-Z0-9_]{1,40}$/.test(error.cause.code)
+    ? error.cause.code
+    : undefined;
+  const errorName = typeof error?.name === 'string' ? error.name : 'Error';
+
+  let category = 'generation_error';
+  if (status === 429) category = 'rate_limited';
+  else if (status === 401 || status === 403) category = 'authentication_or_permission';
+  else if (status === 400) category = 'invalid_request_or_model';
+  else if (errorName.includes('Abort') || causeCode === 'ETIMEDOUT') category = 'timeout';
+  else if (stage === 'gemini_request' && (!status || causeCode)) category = 'network_or_timeout';
+  else if (stage === 'response_parse') category = 'response_parse';
+  else if (stage === 'success_log_persistence') category = 'success_log_persistence';
+
+  return { category, status, errorName, causeCode };
+}
+
+async function persistFailedRequest({ business, user, prompt, requestType, period, model, context = {}, latencyMs = 0 }) {
+  try {
+    await AILog.create({
+      businessId: business._id,
+      userId: user._id,
+      requestType,
+      period,
+      userPrompt: prompt,
+      context,
+      response: '',
+      model,
+      promptVersion: PROMPT_VERSION,
+      latencyMs,
+      status: 'FAILED',
+      tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      estimatedCostUsd: 0
+    });
+  } catch {
+    // A logging failure must not change the user-facing AI error.
+  }
+}
+
 // ─── Core orchestrator ─────────────────────────────────────────────────────
 
 /**
@@ -76,6 +121,14 @@ async function generateResponse({ business, user, prompt, requestType, period, p
   }
 
   if (!env.GEMINI_API_KEY) {
+    await persistFailedRequest({
+      business,
+      user,
+      prompt,
+      requestType,
+      period: period || 'monthly',
+      model: env.GEMINI_MODEL
+    });
     throw new ApiError(503, 'AI_SERVICE_UNAVAILABLE', 'KEETY AI is not configured yet');
   }
 
@@ -96,9 +149,16 @@ async function generateResponse({ business, user, prompt, requestType, period, p
   try {
     contextResult = await assembleContext(business, contextType, {
       period: resolvedPeriod,
-      productId
+      productId,
+      question: prompt
     });
   } catch (err) {
+    logger.error({
+      event: 'ai_context_build_failed',
+      requestType,
+      errorName: err?.name || 'Error',
+      errorCode: err?.code || undefined
+    }, 'AI context build failed');
     if (err instanceof ApiError) throw err;
     // Structured error — no raw stack in production; full err available for local debugging
     throw new ApiError(500, 'CONTEXT_BUILD_ERROR', 'Could not assemble business context');
@@ -108,6 +168,9 @@ async function generateResponse({ business, user, prompt, requestType, period, p
   const systemInstruction = getSystemInstruction(contextType);
   const userMessage = buildUserMessage(context, prompt);
   const startedAt = Date.now();
+  let failureStage = 'gemini_request';
+
+  logger.info({ event: 'gemini_request_started', requestType, model: env.GEMINI_MODEL }, 'Gemini request started');
 
   try {
     // 2. Call Gemini (AI.md §122 — low temperature for factual business answers)
@@ -118,12 +181,21 @@ async function generateResponse({ business, user, prompt, requestType, period, p
         temperature: 0.3,      // Low temperature for factual business answers
         maxOutputTokens: 1500  // Bounded to control cost (AI.md §76, §97)
       }
-    });
+    }, { timeout: GEMINI_REQUEST_TIMEOUT_MS });
 
     const result = await model.generateContent(userMessage);
+    logger.info({
+      event: 'gemini_response_received',
+      requestType,
+      model: env.GEMINI_MODEL,
+      durationMs: Date.now() - startedAt
+    }, 'Gemini response received');
+
+    failureStage = 'provider_response_read';
     const rawText = result.response.text();
 
     // 3. Parse and validate structured output (AI.md §51–§52)
+    failureStage = 'response_parse';
     const validated = parseAndValidateOutput(rawText);
 
     // 4. Extract token usage and estimate cost (AI.md §74–§75)
@@ -131,6 +203,7 @@ async function generateResponse({ business, user, prompt, requestType, period, p
     const estimatedCostUsd = estimateCostUsd(tokenUsage.inputTokens, tokenUsage.outputTokens);
 
     // 5. Persist SUCCESS log (AI.md §58, §59, §102)
+    failureStage = 'success_log_persistence';
     await AILog.create({
       businessId: business._id,
       userId: user._id,
@@ -152,27 +225,25 @@ async function generateResponse({ business, user, prompt, requestType, period, p
   } catch (error) {
     if (error instanceof ApiError) throw error;
 
-    // 6. Persist FAILED log so every provider error is observable (AI.md §58)
-    //    Guard with its own try/catch — a log-write failure must not mask the original error.
-    try {
-      await AILog.create({
-        businessId: business._id,
-        userId: user._id,
-        requestType,
-        period: resolvedPeriod,
-        userPrompt: prompt,
-        context,
-        response: '',
-        model: env.GEMINI_MODEL,
-        promptVersion: PROMPT_VERSION,
-        latencyMs: Date.now() - startedAt,
-        status: 'FAILED',
-        tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-        estimatedCostUsd: 0
-      });
-    } catch {
-      // Non-fatal — the original error still propagates below.
-    }
+    logger.error({
+      event: 'ai_generation_failed',
+      stage: failureStage,
+      requestType,
+      model: env.GEMINI_MODEL,
+      durationMs: Date.now() - startedAt,
+      ...getProviderErrorMetadata(error, failureStage)
+    }, 'AI generation failed');
+
+    await persistFailedRequest({
+      business,
+      user,
+      prompt,
+      requestType,
+      period: resolvedPeriod,
+      model: env.GEMINI_MODEL,
+      context,
+      latencyMs: Date.now() - startedAt
+    });
 
     throw new ApiError(503, 'AI_SERVICE_UNAVAILABLE', 'KEETY AI is temporarily unavailable. Please try again.');
   }

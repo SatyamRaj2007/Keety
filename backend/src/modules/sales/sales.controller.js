@@ -1,8 +1,8 @@
 const salesService = require('./sales.service');
 
 async function createSale(req, res) {
-  const sale = await salesService.createSale(req.businessId, req.body);
-  res.status(201).json({ success: true, data: { sale } });
+  const { sale, isDuplicate } = await salesService.createSale(req.businessId, req.body);
+  res.status(isDuplicate ? 200 : 201).json({ success: true, data: { sale } });
 }
 
 async function listSales(req, res) {

@@ -70,6 +70,7 @@ function getSystemInstruction(requestType) {
     ask: [
       'The user is asking a specific question about their business.',
       'Answer directly using only the available metrics and context.',
+      'If relevantDocuments are present in the businessContext, treat them as tenant-scoped business evidence and use them when they answer the user question.',
       'If the answer requires data not present, explain what is missing.',
     ].join(' '),
 

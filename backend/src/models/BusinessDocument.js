@@ -33,10 +33,18 @@ const businessDocumentSchema = new mongoose.Schema({
   mimeType:     { type: String, trim: true, maxlength: 127, default: '' },
 
   // ─── Content (stored text, not binary; binary stored externally) ─────────
-  // For MVP: raw extracted text is stored here directly (no vector store yet).
-  // When a vector index is added, chunks will be stored/indexed separately
-  // while this record remains the authority for ownership and lifecycle.
+  // For MVP: raw extracted text is stored here directly and we also persist
+  // chunk-level metadata so retrieval remains tenant-scoped and auditable.
   extractedText: { type: String, default: '' },
+  chunks: [{
+    chunkId: { type: String, trim: true, required: true },
+    text: { type: String, required: true },
+    section: { type: String, trim: true, default: '' },
+    contentHash: { type: String, trim: true, default: '' },
+    start: { type: Number, min: 0, default: 0 },
+    end: { type: Number, min: 0, default: 0 },
+    order: { type: Number, min: 0, default: 0 }
+  }],
   wordCount:     { type: Number, min: 0, default: 0 },
 
   // ─── Versioning & integrity (RAG.md §29, §87) ───────────────────────────

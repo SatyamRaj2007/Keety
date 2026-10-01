@@ -73,6 +73,22 @@ test('ISOLATION — Business: user cannot read another user\'s business', async 
   assert.equal(res.status, 404, 'cross-tenant business read must be denied');
 });
 
+test('ISOLATION — Business: membership grants access to an authorized business', async () => {
+  const ctx1 = await makeUserWithBusiness();
+  const ctx2 = await makeUserWithBusiness();
+
+  ctx1.user.businessIds.push(ctx2.business._id);
+  await ctx1.user.save();
+
+  const product = await makeProduct(ctx2.business._id, { price: 420 });
+  const res = await request(app)
+    .get(`/api/products/${product._id}`)
+    .set(headers(ctx1.token, ctx2.business._id));
+
+  assert.equal(res.status, 200, 'a business member should access resources in their assigned business');
+  assert.equal(res.body.data.product.businessId, String(ctx2.business._id));
+});
+
 test('ISOLATION — Business: user cannot update another user\'s business', async () => {
   const ctx1 = await makeUserWithBusiness();
   const ctx2 = await makeUserWithBusiness();

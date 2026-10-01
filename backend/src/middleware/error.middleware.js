@@ -1,7 +1,17 @@
+const { ApiError } = require('../utils/errors');
+
 function notFoundMiddleware(req, res, next) {
   const error = new Error(`Route not found: ${req.method} ${req.originalUrl}`);
   error.statusCode = 404;
   error.code = 'NOT_FOUND';
+
+  req.logger?.warn({
+    statusCode: 404,
+    code: 'NOT_FOUND',
+    userId: req.user?._id ? String(req.user._id) : undefined,
+    businessId: req.businessId ? String(req.businessId) : undefined
+  }, 'route not found');
+
   next(error);
 }
 
@@ -23,12 +33,27 @@ function errorMiddleware(error, req, res, next) {
     errorMessage = 'Request body must be valid JSON';
   }
 
-  const message = statusCode >= 500 && process.env.NODE_ENV === 'production'
+  const isSafeAiServiceError = error instanceof ApiError && error.code === 'AI_SERVICE_UNAVAILABLE';
+  const message = statusCode >= 500 && process.env.NODE_ENV === 'production' && !isSafeAiServiceError
     ? 'An unexpected error occurred'
     : errorMessage;
 
+  const logContext = {
+    statusCode,
+    code,
+    requestId: req.id,
+    method: req.method,
+    url: req.originalUrl,
+    userId: req.user?._id ? String(req.user._id) : undefined,
+    businessId: req.businessId ? String(req.businessId) : undefined,
+    errorName: error.name,
+    errorMessage: process.env.NODE_ENV === 'production' ? undefined : error.message
+  };
+
   if (statusCode >= 500) {
-    console.error(error);
+    req.logger?.error(logContext, 'request failed');
+  } else {
+    req.logger?.warn(logContext, 'request failed');
   }
 
   res.status(statusCode).json({

@@ -16,7 +16,15 @@ async function updateBusiness(business, input) {
 }
 
 async function getBusiness(id, userId) {
-  const business = await Business.findOne({ _id: id, ownerId: userId });
+  const user = await User.findById(userId).select('businessIds');
+  const business = await Business.findOne({
+    _id: id,
+    $or: [
+      { ownerId: userId },
+      { _id: { $in: user?.businessIds || [] } }
+    ]
+  });
+
   if (!business) {
     throw new ApiError(404, 'BUSINESS_NOT_FOUND', 'Business not found');
   }

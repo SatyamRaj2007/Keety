@@ -68,6 +68,33 @@ test('POST /sales — 201 creates a sale with correct totals', async () => {
   assert.equal(res.body.data.sale.totalAmount, 975);
 });
 
+test('POST /sales — repeated idempotency key returns the same sale without double-creating', async () => {
+  const { token, business, product } = await setupSaleContext();
+  const payload = {
+    idempotencyKey: 'sale-dup-123',
+    items: [{ productId: product._id.toString(), quantity: 1 }],
+    paymentMethod: 'CARD'
+  };
+
+  const first = await request(app)
+    .post('/api/sales')
+    .set(authHeaders(token, business._id))
+    .send(payload);
+
+  const second = await request(app)
+    .post('/api/sales')
+    .set(authHeaders(token, business._id))
+    .send(payload);
+
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 200);
+  assert.equal(String(second.body.data.sale._id), String(first.body.data.sale._id));
+
+  const Sale = require('../../src/models/Sale');
+  const count = await Sale.countDocuments({ businessId: business._id, idempotencyKey: payload.idempotencyKey });
+  assert.equal(count, 1);
+});
+
 test('POST /sales — decrements inventory after a successful sale', async () => {
   const Inventory = require('../../src/models/Inventory');
   const { token, business, product } = await setupSaleContext();

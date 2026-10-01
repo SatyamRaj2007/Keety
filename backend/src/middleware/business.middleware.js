@@ -21,9 +21,17 @@ async function requireBusiness(req, res, next) {
   }
 
   try {
-    const business = await Business.findOne({ _id: businessId, ownerId: req.user._id });
+    const business = await Business.findById(businessId);
 
     if (!business) {
+      return next(new ApiError(404, 'BUSINESS_NOT_FOUND', 'Business not found'));
+    }
+
+    const userBusinessIds = (req.user.businessIds || []).map((id) => id.toString());
+    const hasBusinessAccess = userBusinessIds.includes(businessId.toString())
+      || business.ownerId?.toString() === req.user._id.toString();
+
+    if (!hasBusinessAccess) {
       return next(new ApiError(404, 'BUSINESS_NOT_FOUND', 'Business not found'));
     }
 

@@ -35,4 +35,12 @@ async function updateDocument(req, res) {
   res.status(200).json({ success: true, data: { document: doc } });
 }
 
-module.exports = { ingestDocument, listDocuments, getDocument, deleteDocument, updateDocument };
+async function searchDocuments(req, res) {
+  const result = await ragService.searchDocuments(req.businessId, req.body.query, {
+    limit: req.body.limit,
+    threshold: 0
+  });
+  res.status(200).json({ success: true, data: result });
+}
+
+module.exports = { ingestDocument, listDocuments, getDocument, deleteDocument, updateDocument, searchDocuments };

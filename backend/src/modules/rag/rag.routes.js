@@ -16,7 +16,7 @@
 
 const express = require('express');
 const ragController = require('./rag.controller');
-const { ingestDocumentSchema, updateDocumentSchema } = require('./rag.validation');
+const { ingestDocumentSchema, updateDocumentSchema, searchDocumentsSchema } = require('./rag.validation');
 const { requireAuth } = require('../../middleware/auth.middleware');
 const { requireBusiness } = require('../../middleware/business.middleware');
 const { validate } = require('../../middleware/validate.middleware');
@@ -27,6 +27,7 @@ const router = express.Router();
 router.use(requireAuth, requireBusiness);
 
 router.post('/documents',       validate(ingestDocumentSchema), ragController.ingestDocument);
+router.post('/search',           validate(searchDocumentsSchema), ragController.searchDocuments);
 router.get('/documents',                                        ragController.listDocuments);
 router.get('/documents/:id',                                    ragController.getDocument);
 router.patch('/documents/:id',  validate(updateDocumentSchema), ragController.updateDocument);

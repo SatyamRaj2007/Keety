@@ -1,6 +1,7 @@
 const { z } = require('zod');
 
 const createSaleSchema = z.object({
+  idempotencyKey: z.string().trim().min(1).max(128).optional(),
   items: z.array(z.object({
     productId: z.string().regex(/^[a-f\d]{24}$/i),
     quantity: z.number().int().positive()
