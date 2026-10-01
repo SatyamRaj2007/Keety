@@ -7,6 +7,7 @@ import { OnboardingPage } from './pages/OnboardingPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SalesPage } from './pages/SalesPage'
+import { CustomersPage } from './pages/CustomersPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
 import { AskPage, GrowthPage, ProductAnalysisPage, BusinessSummaryPage, AIHistoryPage, KnowledgeBasePage } from './pages/AiPages'
 import { SettingsPage } from './pages/SettingsPage'
@@ -50,7 +51,7 @@ function App() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="products" element={<ProductsPage />} />
         <Route path="sales" element={<SalesPage />} />
-        <Route path="customers" element={<UnavailablePage section="customers" />} />
+        <Route path="customers" element={<CustomersPage />} />
         <Route path="expenses" element={<UnavailablePage section="expenses" />} />
         <Route path="inventory" element={<UnavailablePage section="inventory" />} />
         <Route path="analytics" element={<AnalyticsPage />} />

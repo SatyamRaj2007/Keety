@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ArrowRight, BarChart3, BookOpenCheck, Check,
-  CheckCircle, Clock, FileText, History, Layers,
+  Clock, FileText, History, Layers,
   Lightbulb, Loader, Package, Plus, RefreshCw,
   Send, Sparkles, Target, Trash2, TrendingUp, Upload, XCircle,
 } from 'lucide-react'

@@ -11,7 +11,7 @@ const primaryNavigation = [
   { path: '/app/dashboard', label: 'Overview', icon: LayoutDashboard, section: 'Workspace' },
   { path: '/app/products', label: 'Products', icon: Package, section: 'Manage' },
   { path: '/app/sales', label: 'Sales', icon: ReceiptText, section: 'Manage' },
-  { path: '/app/customers', label: 'Customers', icon: Users, section: 'Manage', unavailable: true },
+  { path: '/app/customers', label: 'Customers', icon: Users, section: 'Manage' },
   { path: '/app/expenses', label: 'Expenses', icon: BriefcaseBusiness, section: 'Manage', unavailable: true },
   { path: '/app/inventory', label: 'Inventory', icon: Boxes, section: 'Manage', unavailable: true },
   { path: '/app/analytics',        label: 'Analytics',        icon: ChartNoAxesCombined, section: 'Insights' },

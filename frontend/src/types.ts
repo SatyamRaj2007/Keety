@@ -46,6 +46,20 @@ export interface SaleItem {
   total: number
 }
 
+export interface Customer {
+  _id: string
+  businessId: string
+  name: string
+  email: string
+  phone: string
+  externalId: string
+  totalOrders: number
+  totalSpent: number
+  lastPurchaseAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Sale {
   _id: string
   businessId: string
