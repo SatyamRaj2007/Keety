@@ -95,3 +95,11 @@ Each entry follows:
 - **Fix:** Investigating — see next steps below
 - **Status:** 🔍 INVESTIGATING
 
+### ERROR-008 — Gemini credential rejected during live generation
+- **When:** During direct REST and SDK `generateContent` verification
+- **Where:** `backend/.env` → `GEMINI_API_KEY` → `backend/src/modules/ai/ai.service.js`
+- **Symptom:** Direct REST returned HTTP 401; the SDK also returned 401. Ask KEETY and Growth Plan therefore receive the backend's safe AI-unavailable response rather than a generated result.
+- **Root cause:** Gemini returned `UNAUTHENTICATED` with reason `ACCESS_TOKEN_TYPE_UNSUPPORTED`. The configured value is not accepted as a Gemini API key. The provider request reached Gemini, so this is not a Docker DNS/HTTPS, model-name, or JSON-body failure.
+- **Fix:** The rejected value was removed from this working copy. A valid Gemini API key must be created and stored in the ignored local `backend/.env`; do not commit or share it.
+- **Status:** ⚠️ BLOCKED — generation remains unverified until a valid key is configured. The original note claimed the value was exposed in Git history; historical environment-file tracking still needs independent verification.
+

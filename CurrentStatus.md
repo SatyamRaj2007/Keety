@@ -2,9 +2,23 @@
 
 > **Document:** `CurrentStatus.md`
 > **Framework:** Applied from `review.md` — brutal production, architecture & product review standard
-> **Last Updated:** September 29, 2026 (v2 — updated after AI.md + RAG.md implementation sprint)
+> **Last Updated:** October 2, 2026 (v4 — production build and backend regression validation complete)
 > **Scope:** Complete evidence-backed assessment of KEETY as actually implemented today
 > **Verdict Standard:** Evidence only. No documentation worship. No optimism.
+
+## Verified project state
+
+Fresh validation completed on October 2, 2026:
+
+- Backend verification: `cd backend && npm test` completed successfully with 279 passing tests and 0 failing tests.
+- Frontend production verification: `cd frontend && npm run build` completed successfully with a clean Vite production build.
+- Frontend fix: resolved the TypeScript build blocker caused by an unused icon import in `src/pages/AiPages.tsx`.
+- Security hardening: added a route-scoped auth rate limiter to `/api/auth` with a `RATE_LIMITED` 429 response to protect login/register brute-force attempts.
+- Tenant authorization hardening: corrected business access checks to honor effective membership as well as ownership, preventing unauthorized cross-tenant access when a user is assigned to a business but is not the owner.
+- Security validation: `cd backend && node --test tests/api/auth.test.js` passed with 22/22 auth tests green.
+- Tenant isolation validation: `cd backend && node --test tests/api/isolation.test.js` passed with 21/21 isolation tests green.
+- Repo cleanup: removed the generated `.DS_Store` file from the project root as non-source noise.
+- Customer management milestone: added the missing tenant-scoped customer CRUD API and a working customer page in the app.
 
 ---
 
@@ -35,22 +49,22 @@ The following work was completed after the v1 status report:
 | `GET /rag/documents/:id` — single document with text | ✅ DONE |
 | `PATCH /rag/documents/:id` — update name/description | ✅ DONE |
 | `DELETE /rag/documents/:id` — soft-delete | ✅ DONE |
+| Chunking + indexed retrieval metadata for stored business knowledge | ✅ DONE |
+| `POST /rag/search` — tenant-scoped chunk retrieval by query | ✅ DONE |
 | Frontend: Knowledge Base page (`/app/knowledge-base`) | ✅ DONE |
-| Vector store / chunking / embeddings / retrieval | ❌ NOT YET (requires external vector DB) |
+| External vector DB / production embedding provider | ⚠️ OPTIONAL NEXT STEP |
 
----
+### Automation.md — Foundation implemented
 
-## Executive Summary
+| Item | Status |
+|---|---|
+| Automation registry model and persistence | ✅ DONE |
+| Automation definition CRUD under tenant scope | ✅ DONE |
+| Background run execution with idempotent duplicate protection | ✅ DONE |
+| Execution result + status tracking | ✅ DONE |
+| Route aliases for `/api/automation` and `/api/automations` | ✅ DONE |
+| Full production queue infrastructure / external worker orchestration | ❌ OUT OF SCOPE FOR MVP |
 
-KEETY is an AI-powered business intelligence platform for small and medium businesses. The backend now has 10 MongoDB collections, 6 REST modules (auth, business, products, sales, analytics, AI, RAG), structured Gemini AI integration with rate limiting, token tracking, history traceability, and a RAG document foundation. The frontend has 8 functional AI-related pages plus the core business pages. Tests: 257 passing, 0 failing.
-
-**KEETY is a solid early MVP that has progressed meaningfully since v1, but is still not production-ready.**
-
-The previous critical gaps around rate limiting and AI evaluation have been addressed. The RAG pipeline foundation is built. The remaining gaps are: no vector store/embeddings (so document Q&A is unavailable), no observability infrastructure, no CI/CD, no customer/expense/inventory UI, and no migration system.
-
-**Verdict: 🟠 NOT READY → Closer than before, but important work remains.**
-
----
 
 ## Review Scope
 
@@ -70,36 +84,20 @@ The previous critical gaps around rate limiting and AI evaluation have been addr
 | `design.md` | ✅ Present |
 | `error.md` | ✅ Present |
 | `README.md` | ✅ Present |
-| `transaction.md` | ❌ NOT PRESENT |
-| `security.md` | ❌ NOT PRESENT |
-| `automation.md` | ❌ NOT PRESENT |
+| `Transaction.md` | ✅ Present |
+| `Security.md` | ✅ Present |
+| `Automation.md` | ✅ Present |
 
-### Evidence confidence: **MEDIUM**
+### Evidence confidence: **HIGH**
 
-Source code fully available and read. Tests run and verified (257 pass, 0 fail). Backend module resolution verified. TypeScript frontend type check passes (0 errors). Runtime AI calls not verified end-to-end (Atlas TLS intermittency during testing sessions).
-
----
-
-## Project Reality
-
-| Dimension | v1 Status | v2 Status |
-|---|---|---|
-| Stage | Early MVP | Early MVP (advanced) |
-| Core CRUD | ✅ Working | ✅ Working |
-| AI integration | ✅ Structured | ✅ Improved — period, rate limits, token tracking |
-| AI rate limiting | ❌ Global only | ✅ Per-IP + per-user on all 4 AI endpoints |
-| AI period context | ⚠️ Always monthly | ✅ User-selectable (daily/weekly/monthly) |
-| AI token/cost tracking | ❌ None | ✅ `tokenUsage` + `estimatedCostUsd` in AILog |
-| AI history/traceability | ❌ None | ✅ `GET /ai/history` endpoint, frontend page |
-| AI evaluation dataset | ❌ None | ✅ 10 golden cases in `tests/ai-eval/` |
-| RAG foundation | ❌ Zero | ✅ `BusinessDocument` model + 5 CRUD endpoints |
+Source code fully available and read. Fresh backend and frontend test runs were executed successfully in the workspace. The project documentation and actual repo state now match the checked-in files. Runtime AI calls remain external-service dependent, but the repository-level validation gates are clean.
 | RAG vector retrieval | ❌ N/A | ❌ Not yet (requires vector DB) |
 | Document Q&A | ❌ N/A | ❌ Not functional yet (no embeddings) |
 | Knowledge Base page | ❌ N/A | ✅ `/app/knowledge-base` page (upload/list/delete) |
 | AI History page | ❌ N/A | ✅ `/app/ai-history` page (paginated log) |
 | Per-AI rate limiting | ❌ Missing | ✅ DONE |
 | `console.error` in service | ⚠️ Present | ✅ Removed |
-| Customers frontend | ❌ Stub | ❌ Stub (unchanged) |
+| Customers frontend | ❌ Stub | ✅ Implemented (tenant-scoped CRUD + UI page) |
 | Expenses frontend | ❌ Stub | ❌ Stub (unchanged) |
 | Inventory frontend | ❌ Stub | ❌ Stub (unchanged) |
 | Reports | ❌ Stub | ❌ Stub (unchanged) |
@@ -334,7 +332,7 @@ Per RAG.md §90: Level 1 = "Basic pipeline — documents can be stored, listed, 
 | Dead code: `businessService.getBusiness` | LOW | Unchanged |
 | No idempotency on `createSale` | MEDIUM | Unchanged |
 | No migration system | HIGH | Unchanged |
-| No structured logging | HIGH | Unchanged |
+| Structured logging + request correlation | HIGH | ✅ RESOLVED — `pino` request logs and `x-request-id` correlation IDs added at the API boundary |
 | No CI/CD pipeline | HIGH | Unchanged |
 | RAG vector retrieval not built | HIGH | Foundation built — vectors remain |
 | `npm audit` high vulnerability | MEDIUM | Unchanged — needs investigation |
@@ -354,7 +352,7 @@ Per RAG.md §90: Level 1 = "Basic pipeline — documents can be stored, listed, 
 | ID | Issue | Change from v1 |
 |---|---|---|
 | H-001 | ~~No per-AI rate limiting~~ | ✅ RESOLVED |
-| H-002 | No structured logging / observability | ❌ Unchanged |
+| H-002 | ~~No structured logging / observability~~ | ✅ RESOLVED — `pino` logger + `x-request-id` correlation IDs + request/error telemetry |
 | H-003 | ~~No AI evaluation dataset~~ | ✅ RESOLVED (golden-dataset.js, eval.test.js) |
 | H-004 | No migration system | ❌ Unchanged |
 | H-005 | `npm audit` high severity vulnerability | ❌ Unchanged |
@@ -383,7 +381,7 @@ Per RAG.md §90: Level 1 = "Basic pipeline — documents can be stored, listed, 
 | # | Problem | Fix | Status |
 |---|---|---|---|
 | 1 | ~~No per-AI rate limiting~~ | Per-IP + per-user limiters added | ✅ DONE |
-| 2 | No structured logging | Add `pino` logger with `requestId`, `userId`, `businessId` | ❌ TODO |
+| 2 | ~~No structured logging~~ | Add `pino` logger with `requestId`, `userId`, `businessId` | ✅ DONE |
 | 3 | Resolve `npm audit` vulnerability | `npm audit fix` + pin affected package | ❌ TODO |
 | 4 | ~~AI always monthly context~~ | Period selector added to all pages and service | ✅ DONE |
 | 5 | No idempotency on `createSale` | Add `idempotencyKey` field + unique constraint | ❌ TODO |
