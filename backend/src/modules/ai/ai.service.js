@@ -35,7 +35,7 @@ const GEMINI_REQUEST_TIMEOUT_MS = 30_000;
 
 /**
  * Estimate USD cost from token counts.
- * Gemini 2.0 Flash pricing as of Sept 2026 (≤128K context):
+ * Gemini 3.8 Flash pricing (≤128K context):
  *   Input:  $0.075 / 1M tokens
  *   Output: $0.30  / 1M tokens
  * Per AI.md §75 — track cost; do not claim exact billing accuracy.

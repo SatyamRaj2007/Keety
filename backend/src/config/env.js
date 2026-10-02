@@ -10,7 +10,7 @@ const environmentSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   GEMINI_API_KEY: z.string().optional().default(''),
-  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  GEMINI_MODEL: z.string().default('gemini-3.8-flash'),
   CLIENT_ORIGIN: z.string().default('http://localhost:5173')
 });
 
