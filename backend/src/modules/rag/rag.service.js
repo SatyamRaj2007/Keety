@@ -146,6 +146,11 @@ async function ingestDocument(businessId, userId, input) {
 
   // ── Clean and hash (RAG.md §19, §16) ─────────────────────────────────────
   const cleanedText = cleanText(text);
+
+  // Reject text that is empty after cleaning (e.g. whitespace-only input)
+  if (!cleanedText) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Document text must contain readable content');
+  }
   const contentHash = sha256(cleanedText);
   const chunks = chunkText(cleanedText, { maxChars: 800, overlap: 120 });
 
